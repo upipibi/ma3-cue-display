@@ -4,6 +4,7 @@ local M = {}
 
 local REASONS = {
   [200] = "OK",
+  [204] = "No Content",
   [400] = "Bad Request",
   [404] = "Not Found",
   [405] = "Method Not Allowed",
@@ -57,6 +58,10 @@ function M.route(req, ctx)
     return M.response(200, "application/json; charset=utf-8", ctx.state_json)
   elseif p == "/health" then
     return M.response(200, "text/plain; charset=utf-8", "ok " .. ctx.version)
+  elseif p == "/favicon.ico" then
+    -- Browsers and OBS request this unprompted on every page load. Answering
+    -- 204 keeps them from retrying a 404 through the console's pending queue.
+    return M.response(204, "image/x-icon", "")
   end
   return M.response(404, "text/plain; charset=utf-8", "not found")
 end

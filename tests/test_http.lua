@@ -106,6 +106,12 @@ t.describe("http.route", function()
     t.assert_match(r, "ok 2.0.0")
   end)
 
+  t.it("204s /favicon.ico so browsers stop retrying it", function()
+    local r = http.route({ method = "GET", path = "/favicon.ico", query = "" }, CTX)
+    t.assert_match(r, "204 No Content")
+    t.assert_match(r, "Content-Length: 0\r\n")
+  end)
+
   t.it("404s an unknown path", function()
     t.assert_match(http.route({ method = "GET", path = "/nope", query = "" }, CTX),
       "404 Not Found")

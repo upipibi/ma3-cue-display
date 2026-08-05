@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grandMA3 Cue</title>
+<style>
+  /* No webfont: the console has no route to the internet, so an external font
+     would block paint and then fail. System stack only. */
+  :root {
+    --accent: #009CDE;   /* brand Light Blue. #004C97 fails WCAG AA on black. */
+    --muted: #8a9099;
+    --dim: #444a52;
+    --fg: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    background: #0b0d10;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .stack { text-align: center; max-width: 100%; }
+  .sequence {
+    font-size: clamp(1rem, 2.5vw, 2rem);
+    font-weight: 400;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.4em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cue { display: flex; align-items: baseline; justify-content: center;
+         gap: 0.4em; max-width: 100%; }
+  .number {
+    font-size: clamp(3rem, 11vw, 9rem);
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .name {
+    font-size: clamp(2rem, 7vw, 5.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .waiting { color: var(--dim); font-weight: 400;
+             font-size: clamp(1.2rem, 3.5vw, 2.4rem); }
+
+  /* Stale: the console stopped answering, or updatedAt stopped advancing.
+     Showing a cue that is no longer real is the failure that actually bites. */
+  body.stale .stack { opacity: 0.25; }
+  .offline {
+    position: fixed; bottom: 1.2rem; left: 0; right: 0;
+    text-align: center; color: #d9534f;
+    font-size: clamp(0.8rem, 1.6vw, 1.1rem);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    display: none;
+  }
+  body.stale .offline { display: block; }
+
+  /* Overlay: OBS keys on the page's alpha, so the background must be fully
+     transparent. The vignette keeps text legible over a camera feed. */
+  body.overlay {
+    background: transparent;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: 0 0 4vh 4vw;
+  }
+  body.overlay .stack {
+    text-align: left;
+    background: radial-gradient(ellipse at 30% 50%,
+      rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.42) 55%, transparent 82%);
+    padding: 1.2em 3em 1.2em 1.5em;
+    border-radius: 0.5rem;
+  }
+  body.overlay .cue { justify-content: flex-start; }
+  body.overlay .number, body.overlay .name {
+    text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8);
+  }
+  body.overlay .sequence { text-shadow: 0 1px 6px rgba(0,0,0,0.9); }
+
+  /* Debug: the page you open when someone says it shows the wrong cue. */
+  body.debug { align-items: flex-start; justify-content: flex-start;
+               padding: 1.5rem; display: block; overflow: auto; }
+  body.debug .stack { text-align: left; margin-bottom: 1.5rem; }
+  body.debug .number { font-size: 3rem; }
+  body.debug .name { font-size: 2rem; }
+  .debugpanel { display: none; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+                font-size: 0.85rem; color: var(--muted); }
+  body.debug .debugpanel { display: block; }
+  .debugpanel h2 { font-size: 0.8rem; text-transform: uppercase;
+                   letter-spacing: 0.1em; color: var(--accent);
+                   margin: 1.2rem 0 0.4rem; }
+  .debugpanel pre { white-space: pre-wrap; word-break: break-all;
+                    background: #14171c; padding: 0.8rem; border-radius: 4px; }
+  .debugpanel li { list-style: none; padding: 0.15rem 0; }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="sequence" id="sequence"></div>
+    <div class="cue">
+      <span class="number" id="number"></span>
+      <span class="name waiting" id="name">Waiting for first cue</span>
+    </div>
+  </div>
+
+  <div class="offline" id="offline">No data from console</div>
+
+  <div class="debugpanel">
+    <h2>Active sequences</h2>
+    <ul id="dbgActive"></ul>
+    <h2>Poll</h2>
+    <ul id="dbgPoll"></ul>
+    <h2>Raw state</h2>
+    <pre id="dbgRaw">&mdash;</pre>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  var POLL_MS = 250;
+  var STALE_MS = 2000;   // 8 missed polls before we stop trusting the display
+
+  var params = new URLSearchParams(location.search);
+  var mode = location.pathname === "/debug" ? "debug"
+           : (params.get("style") === "overlay" ? "overlay" : "full");
+  document.body.classList.add(mode);
+
+  var el = {
+    sequence: document.getElementById("sequence"),
+    number: document.getElementById("number"),
+    name: document.getElementById("name"),
+    offline: document.getElementById("offline"),
+    dbgActive: document.getElementById("dbgActive"),
+    dbgPoll: document.getElementById("dbgPoll"),
+    dbgRaw: document.getElementById("dbgRaw")
+  };
+
+  // Two independent failures, each needing its own timer:
+  //   lastGoodAt    -- last successful fetch. Detects an unreachable console.
+  //   lastAdvanceAt -- last time updatedAt actually moved. Detects a console
+  //                    that still answers HTTP while its tick loop has wedged.
+  // Conflating them hides the second failure entirely, because a responding
+  // server keeps lastGoodAt current no matter how stale its data is.
+  // Both start at load time so the page gets one STALE_MS of grace before it
+  // accuses the console of anything.
+  var lastGoodAt = Date.now();
+  var lastAdvanceAt = Date.now();
+  var lastUpdatedAt = null;
+  var stalledSince = null;
+  var polls = 0, errors = 0, lastLatency = 0;
+
+  // Cue and sequence names come from a show file, so they are untrusted text.
+  // Always assign through textContent, never innerHTML.
+  function setList(node, items) {
+    node.textContent = "";
+    if (!items.length) {
+      var none = document.createElement("li");
+      none.textContent = "none";
+      node.appendChild(none);
+      return;
+    }
+    items.forEach(function (text) {
+      var li = document.createElement("li");
+      li.textContent = text;
+      node.appendChild(li);
+    });
+  }
+
+  function render(s) {
+    el.sequence.textContent = s.sequence || "";
+    var hasCue = s.cueNumber && s.cueNumber !== "--";
+    el.number.textContent = hasCue ? s.cueNumber : "";
+    if (hasCue || s.cueName) {
+      el.name.classList.remove("waiting");
+      el.name.textContent = s.cueName || "";
+    } else {
+      el.name.classList.add("waiting");
+      el.name.textContent = "Waiting for first cue";
+    }
+  }
+
+  function renderDebug(s, raw) {
+    if (mode !== "debug") return;
+    setList(el.dbgActive, (s && s.activeSequences) || []);
+    setList(el.dbgPoll, [
+      "polls: " + polls,
+      "errors: " + errors,
+      "last latency: " + lastLatency + " ms",
+      "server updatedAt: " + (s ? s.updatedAt : "—"),
+      "stalled: " + (stalledSince === null ? "no" : "since " + stalledSince),
+      "version: " + (s ? s.version : "—")
+    ]);
+    el.dbgRaw.textContent = raw || "—";
+  }
+
+  function refreshStale() {
+    var now = Date.now();
+    var unreachable = now - lastGoodAt > STALE_MS;
+    var wedged = now - lastAdvanceAt > STALE_MS;
+    document.body.classList.toggle("stale", unreachable || wedged);
+    // Naming which failure it is turns a blank stare into a diagnosis.
+    el.offline.textContent = unreachable
+      ? "No data from console"
+      : "Console stopped updating";
+  }
+
+  function poll() {
+    var t0 = performance.now();
+    // no-store, plus a cache-buster, because OBS's embedded browser is more
+    // willing to cache a 200 than a normal browser is.
+    fetch("/api/state?_=" + Date.now(), { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (raw) {
+        lastLatency = Math.round(performance.now() - t0);
+        polls++;
+        var s = JSON.parse(raw);
+        lastGoodAt = Date.now();
+
+        // The console answering is not the same as the console still running its
+        // tick loop. If updatedAt stops advancing, the loop has wedged.
+        if (s.updatedAt === lastUpdatedAt) {
+          if (stalledSince === null) stalledSince = s.updatedAt;
+        } else {
+          stalledSince = null;
+          lastUpdatedAt = s.updatedAt;
+          lastAdvanceAt = Date.now();
+        }
+
+        render(s);
+        refreshStale();
+        renderDebug(s, raw);
+      })
+      .catch(function () {
+        errors++;
+        refreshStale();
+        renderDebug(null, null);
+      });
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>
