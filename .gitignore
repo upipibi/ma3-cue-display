@@ -53,3 +53,6 @@ build/
 
 # Playwright MCP scratch output from local browser testing
 .playwright-mcp/
+
+# Retired Tauri app: source removed in 2.0.0, build output left on disk locally
+gma3-cue-display-tauri/

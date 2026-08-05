@@ -1,142 +1,147 @@
-# GrandMA3 Cue Display
+# MA3 Cue Display
 
-A macOS menu bar app that displays your current GrandMA3 cue in a web browser.
+A cue display for grandMA3 that runs **on the console itself**. No extra
+computer, no OSC configuration, no app to install on a Mac.
 
-![Launcher](Launcher.png)
-![Web Display](Web%20Layout.png)
+Install a plugin, press one button, and any browser or OBS instance on the
+network can see the current cue.
 
-## What It Does
+![Web layout](Web%20Layout.png)
 
-This app runs quietly in your macOS menu bar and serves a **web-based cue display** that shows:
-- **Sequence name** on the first line
-- **Cue number and name** on the second line
+## What it does
 
-The launcher window shows the display URL and your network IP for easy access from any device.
+The plugin reads the console's own object model to find whichever cue stack
+fired most recently, and serves a live page over HTTP from the console. Open it
+on a confidence monitor, a phone, or as an OBS browser source.
 
-## Features
+| URL | What you get |
+|---|---|
+| `http://<console-ip>:8090/` | Full-screen display for a monitor |
+| `http://<console-ip>:8090/?style=overlay` | Transparent overlay for OBS |
+| `http://<console-ip>:8090/debug` | Active sequences, poll stats, raw state |
+| `http://<console-ip>:8090/api/state` | JSON, if you want to build something else |
+| `http://<console-ip>:8090/health` | Liveness check |
 
-- **Web-based display** - View cues in any browser on any device on your network
-- **Menu bar app** - Runs silently in your macOS menu bar
-- **OSC communication** - Receives cue data from GrandMA3 via UDP
-- **OSC log viewer** - Debug incoming OSC messages at `/osc-log`
+Viewers poll `/api/state` every 250 ms. There is no WebSocket: a held-open
+connection inside a cooperative single-coroutine server is a liability, and
+250 ms is invisible on a cue display.
 
-## Quick Start (macOS)
+## Requirements
 
-1. **Download** the DMG from Releases (or build from source)
-2. **Install** by dragging "GMA3 Cue Display" to Applications
-3. **Fix macOS security warning** - Since the app isn't signed with an Apple Developer certificate, macOS may show a "damaged" error. Run this command in Terminal:
-   ```bash
-   xattr -cr /Applications/GMA3\ Cue\ Display.app
-   ```
-4. **Launch** the app - it appears in your menu bar
-5. **Open** the cue display in your browser from the launcher window
+- A grandMA3 console or onPC station with LuaSocket available
+- The viewing device on the same network as the console
+- Port **8090** reachable on the console (8080 is MA3's own Web Remote)
 
-The launcher window shows:
-- Display URL to open in any browser
-- OSC port for GrandMA3 configuration
-- Connection status indicator
+## Install
 
-## GrandMA3 Configuration
+1. Copy `MA3CueDisplay.lua` and `MA3CueDisplay.xml` onto a USB stick.
+2. On the console, put both in `gma3_library/datapools/plugins`.
+3. Import the plugin in the Plugin Pool.
+4. Set the plugin's **InStream** property so it is stored in the show file. It
+   then travels with the show and survives a console reboot.
+5. Make one macro, `Cue Display`, containing `Plugin "MA3CueDisplay"`.
+6. Put that macro on an executor button.
 
-### Step 1: Open OSC Settings
-1. Press **Menu**
-2. Navigate to **In & Out**
-3. Select **OSC**
+## Running it
 
-### Step 2: Configure OSC Output
-1. **Enable Output**: Toggle ON
-2. **Destination IP**: Enter the IP address of the computer running this app
-3. **Port**: Set to `8000`
-4. **Mode**: UDP
+Press **Cue Display**. The Command Line Feedback window prints the port and the
+URLs. Read your console's IP off the network menu and open the page.
 
-### Step 3: Enable Send Options
-In the OSC configuration grid, set **Send** to **Yes** for the rows you want to monitor.
+The button is a **toggle** — press it again to stop the server and release the
+port. There is one component and one macro: press to start, press to stop.
 
-### Step 4: Verify Connection
-When a cue is triggered on the console, you should see the cue name update in real-time on the web display.
+**There is no auto-start on a console.** grandMA3 offers a `RUNPLUGIN` launch
+argument for onPC only; a console has no supported on-show-load hook, because
+the engine cannot be started while it is still being assembled. So this is one
+button press per session.
 
-## Ports
+The plugin also stops itself if it hits ten consecutive internal errors, rather
+than continuing to run in a bad state on a live desk.
 
-| Port | Protocol | Description |
-|------|----------|-------------|
-| 3000 | HTTP/WebSocket | Web display server |
-| 8000 | UDP | OSC input from GrandMA3 |
+If the feedback says *stop requested* but nothing was actually running — which
+can happen if a previous run was killed abnormally and left its flag set — press
+the button once more to start.
 
-## Project Structure
+## OBS setup
 
-```
-MA3 Cue Display/
-├── gma3-cue-display-tauri/     # Tauri menu bar app
-│   ├── src-tauri/
-│   │   ├── src/lib.rs          # Main Rust code (server + OSC)
-│   │   ├── Cargo.toml          # Rust dependencies
-│   │   └── tauri.conf.json     # Tauri configuration
-│   └── src/
-│       ├── index.html          # Launcher window UI
-│       ├── web-display.html    # Web cue display (served to browsers)
-│       └── osc-log.html        # OSC message log viewer
-└── README.md
-```
+1. Add a **Browser** source.
+2. URL: `http://<console-ip>:8090/?style=overlay`
+3. Width 1920, Height 1080.
+4. Leave **Shutdown source when not visible** off, so it stays current.
 
-## Network Architecture
+The page background is fully transparent in overlay mode, so it keys straight
+over a camera input with no chroma key.
 
-```
-┌─────────────────┐         OSC (UDP)          ┌─────────────────┐
-│   GrandMA3      │ ────────────────────────▶  │   Menu Bar App  │
-│   Console       │        Port 8000           │     (Tauri)     │
-└─────────────────┘                            └────────┬────────┘
-                                                        │
-                                                        │ WebSocket
-                                                        │ Port 3000
-                                               ┌────────▼────────┐
-                                               │   Web Browser   │
-                                               │  (Cue Display)  │
-                                               └─────────────────┘
-```
+## When it shows the wrong thing
 
-Open `http://<your-ip>:3000` in any browser to view the cue display.
+Open `/debug`. It lists every sequence the console reports as playing, the raw
+state JSON, and poll timing.
 
-## API Reference
+The display tracks **whatever fired most recently on any executor**. Bumping a
+flash or effect executor will pull it off your main stack until the main stack
+fires again — that is by design, matching how the original OSC version behaved.
 
-### GET /api/state
+Three rules make that deterministic:
 
-Returns the current state as JSON:
+- If several stacks advance within the same scan and one is already displayed,
+  it keeps the display rather than flapping between them.
+- On startup, the first active stack with a cue wins.
+- When the displayed stack stops playing, its last cue stays on screen. A
+  display that blanks itself when a stack goes off is worse than one showing the
+  last cue that ran.
 
-```json
-{
-  "sequenceName": "Seq 7",
-  "cueNumber": "3.5",
-  "cueName": "Song 1 - Chorus",
-  "progress": 100,
-  "isActive": true,
-  "lastUpdate": "2024-01-15T20:30:00.000Z",
-  "connected": true
-}
-```
+If the page dims, it names which failure it is:
 
-### WebSocket
+| Message | Meaning |
+|---|---|
+| **No data from console** | The console is unreachable — plugin stopped, or a network problem. |
+| **Console stopped updating** | The console is answering, but its tick loop has wedged. Toggle the plugin off and on. |
 
-Connect to the server's WebSocket endpoint to receive real-time updates. Messages are JSON with a `type` field:
-
-- `state` - Initial state on connection
-- `cueUpdate` - Cue information has changed
-- `oscLog` - New OSC message received (for log viewers)
-
-### GET /api/osc-log
-
-Returns the last 100 OSC messages as a JSON array.
-
-## Building from Source
-
-Requires [Rust](https://rustup.rs/) and [Tauri CLI](https://tauri.app/):
+## Building from source
 
 ```bash
-cd gma3-cue-display-tauri
-cargo tauri build
+brew install lua@5.4     # the console runs 5.4; the Mac's default lua is newer
+./run-tests.sh           # unit tests for the pure modules
+./build.sh               # produces dist/MA3CueDisplay.lua and .xml
 ```
 
-The built app will be in `src-tauri/target/release/bundle/`.
+Sources live in `src/` as small modules and are concatenated into one file for
+distribution. `src/ma3.lua` is the only file that touches the grandMA3 API.
+
+### Testing without a console
+
+```bash
+./run-fake-console.sh    # then open http://127.0.0.1:8090/
+```
+
+This runs the **built artifact** against a stubbed object model whose cue stacks
+advance on a timer, driven by a scheduler that honors `coroutine.yield` the way
+MA3's does. It exercises the real shipped Lua rather than a test double, which is
+what caught a JSON precision bug the unit tests could not see. It needs LuaSocket
+locally — the console provides it, a Mac does not:
+
+```bash
+brew install luarocks
+luarocks --lua-version=5.4 --lua-dir=/opt/homebrew/opt/lua@5.4 install --local luasocket
+```
+
+## History
+
+Version 2.0.0 is a complete rewrite, and the third architecture this project has
+had. Earlier versions were a macOS menu-bar app — first Electron, then
+Tauri/Rust — that received OSC over UDP from the console and served the display
+from a Mac. That needed a dedicated machine, OSC output configured on the console
+pointed at it, and an unsigned app users had to talk macOS into opening. The
+console hosts everything now, and the fragile regex that reverse-engineered
+`"SequenceName CueNum CueName"` out of an OSC string went with it.
+
+The old apps remain in this repository's git history.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
+
+Unofficial third-party plugin. Not affiliated with or endorsed by MA Lighting.
+MA's own documentation notes that plugins reach deeper into the system than
+normal console use, and that their support may not be able to help with plugin
+issues.
