@@ -24,6 +24,20 @@ t.describe("json.encode", function()
     t.assert_equal(json.encode(12.5), "12.5")
   end)
 
+  -- Regression: at %.6g a Unix timestamp collapsed to "1.78595e+09" and stayed
+  -- byte-identical for hours, so viewers read a healthy console as wedged.
+  t.it("keeps full precision on Unix-scale timestamps", function()
+    t.assert_equal(json.encode(1785949123.45), "1785949123.45")
+  end)
+
+  t.it("renders successive timestamps as distinct strings", function()
+    local a = json.encode(1785949123.45)
+    local b = json.encode(1785949123.65)
+    if a == b then
+      error("two timestamps 200ms apart encoded identically: " .. a)
+    end
+  end)
+
   t.it("encodes non-finite numbers as null", function()
     t.assert_equal(json.encode(1 / 0), "null")
     t.assert_equal(json.encode(0 / 0), "null")

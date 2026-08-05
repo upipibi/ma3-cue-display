@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GMA3 DataVersion="1.0.0.3">
+    <Plugin Name="MA3CueDisplay" Author="Aaron Larson" Version="@@XML_VERSION@@">
+        <ComponentLua Name="MA3CueDisplay" FileName="MA3CueDisplay.lua" Installed="Yes" LoadOnDemand="Yes" />
+    </Plugin>
+</GMA3>

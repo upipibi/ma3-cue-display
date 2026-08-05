@@ -50,3 +50,6 @@ build/
 
 # macOS icon build artifacts
 *.iconset/
+
+# Playwright MCP scratch output from local browser testing
+.playwright-mcp/

@@ -36,7 +36,12 @@ function M.encode(v)
   elseif tv == "number" then
     if v ~= v or v == math.huge or v == -math.huge then return "null" end
     if math.type(v) == "integer" then return tostring(v) end
-    return (string.format("%.6g", v))
+    -- 14 significant digits, not 6. updatedAt carries a Unix timestamp, which
+    -- needs 13 digits before the decimal point alone; at %.6g it rendered as
+    -- 1.78595e+09 and stayed byte-identical for hours of real time. Every
+    -- viewer uses that value as the console's heartbeat, so a frozen-looking
+    -- updatedAt makes a healthy console read as wedged.
+    return (string.format("%.14g", v))
   elseif tv == "string" then
     return '"' .. escape_string(v) .. '"'
   elseif tv == "table" then
