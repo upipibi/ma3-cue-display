@@ -3,7 +3,7 @@
 **Date:** 2026-08-04
 **Status:** approved design, not yet implemented
 **Replaces:** the macOS Tauri app (v1.0.1) entirely
-**Version of the new product:** 1.0.0 (fresh version line — see Versioning)
+**Version of the new product:** 2.0.0 (see Versioning)
 
 ---
 
@@ -139,7 +139,7 @@ requirement, not a nicety:
   "cueName": "Sermon Wash",
   "activeSequences": ["Main", "Haze"],
   "updatedAt": 91234.56,
-  "version": "1.0.0"
+  "version": "2.0.0"
 }
 ```
 
@@ -249,11 +249,17 @@ friction than installing and babysitting a Mac app.
 
 ## Versioning
 
-The new product starts at **1.0.0**. It is a different language, platform, host machine, and
-install method, sharing nothing with the Tauri app but the idea, and it lives in a new repo.
+The plugin ships as **2.0.0**. It is a different language, platform, host machine, and install
+method, sharing nothing with the Tauri app but the idea, so a major bump is honest.
 
-Note for the record: 1.0.0 sorts *below* the retired 1.0.1. Nothing compares them — new
-repo, new artifact type, no updater — so this is cosmetic only.
+A fresh 1.0.0 line was considered first and abandoned once the history push revealed the
+constraint: the Mac app already owns the `v1.0.0` and `v1.1.0` tags, and those came across
+with the full history. Reusing `v1.0.0` would have meant renaming or deleting existing tags,
+and 2.0.0 sidesteps that with no tag surgery on a repo that is already public.
+
+For the record, the retired app's version history ran v1.0.0 → v1.1.0 → v1.0.1, with v1.0.1
+marked latest despite sorting lowest. 2.0.0 is the first version in this repo that is
+unambiguously above everything before it.
 
 ---
 

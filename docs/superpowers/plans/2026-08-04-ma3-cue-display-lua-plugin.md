@@ -20,7 +20,7 @@ Every task's requirements implicitly include this section.
 - **All grandMA3 API access is confined to `src/ma3.lua`.** No other file may reference `DataPool`, `Root`, `Printf`, `GetVar`, `SetVar`, `SelectedSequence`, or any MA3 global. `src/main.lua` is the one exception, for `Printf`/`GetVar`/`SetVar`/`coroutine.yield` only.
 - **No blocking socket call, ever.** `settimeout(0)` on the listener and on every accepted client. A blocking call freezes the console UI.
 - **Default HTTP port 8090**, configurable at the top of `src/main.lua`. Never 8080 (MA3 Web Remote).
-- **Version is `1.0.0`**, defined once in `build.sh` and injected. No hardcoded version strings elsewhere.
+- **Version is `2.0.0`**, defined once in `build.sh` and injected. No hardcoded version strings elsewhere.
 - **`src/display.html` must never contain the sequence `]==]`** — it is embedded in a Lua `[==[ … ]==]` long string. `build.sh` enforces this.
 - **Accent color `#009CDE`** (brand Light Blue). Brand primary `#004C97` fails WCAG AA on black and must not be used on dark backgrounds.
 - **Commit messages** end with `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
@@ -471,10 +471,10 @@ t.describe("json.encode", function()
         cueName = 'Sermon "Wash"',
         activeSequences = { "Main", "Haze" },
         updatedAt = 5,
-        version = "1.0.0",
+        version = "2.0.0",
       }),
       '{"activeSequences":["Main","Haze"],"cueName":"Sermon \\"Wash\\"",'
-        .. '"cueNumber":"12.5","sequence":"Main","updatedAt":5,"version":"1.0.0"}'
+        .. '"cueNumber":"12.5","sequence":"Main","updatedAt":5,"version":"2.0.0"}'
     )
   end)
 end)
@@ -702,11 +702,11 @@ t.describe("state.payload", function()
   t.it("produces the wire shape", function()
     local st = state.new()
     state.update(st, { snap("Main", "12.5", "Sermon Wash") })
-    local p = state.payload(st, "1.0.0", 91234.5)
+    local p = state.payload(st, "2.0.0", 91234.5)
     t.assert_equal(p.sequence, "Main")
     t.assert_equal(p.cueNumber, "12.5")
     t.assert_equal(p.cueName, "Sermon Wash")
-    t.assert_equal(p.version, "1.0.0")
+    t.assert_equal(p.version, "2.0.0")
     t.assert_equal(p.updatedAt, 91234.5)
     t.assert_equal(#p.activeSequences, 1)
   end)
@@ -858,7 +858,7 @@ The page decides its own mode from `location.pathname` and `location.search` cli
 local t = require("runner")
 local http = require("http")
 
-local CTX = { html = "<html>page</html>", state_json = '{"a":1}', version = "1.0.0" }
+local CTX = { html = "<html>page</html>", state_json = '{"a":1}', version = "2.0.0" }
 
 t.describe("http.parse_request", function()
   t.it("parses a plain GET", function()
@@ -941,7 +941,7 @@ t.describe("http.route", function()
 
   t.it("serves health with the version", function()
     local r = http.route({ method = "GET", path = "/health", query = "" }, CTX)
-    t.assert_match(r, "ok 1.0.0")
+    t.assert_match(r, "ok 2.0.0")
   end)
 
   t.it("404s an unknown path", function()
@@ -1092,7 +1092,7 @@ Why a pending queue rather than accept-then-read: with `settimeout(0)` the reque
 local t = require("runner")
 local server = require("server")
 
-local CTX = { html = "<html>p</html>", state_json = '{"a":1}', version = "1.0.0" }
+local CTX = { html = "<html>p</html>", state_json = '{"a":1}', version = "2.0.0" }
 
 -- A fake client that hands over its request in chunks, one per receive() call,
 -- to exercise partial reads across ticks.
@@ -1136,7 +1136,7 @@ t.describe("server.tick", function()
     -- Accepted this tick; read happens on the same tick's read pass.
     t.assert_equal(r1.served, 1)
     t.assert_equal(c.closed, true)
-    t.assert_match(c.sent[1], "ok 1.0.0")
+    t.assert_match(c.sent[1], "ok 2.0.0")
   end)
 
   t.it("accumulates a partial request across ticks", function()
@@ -1150,7 +1150,7 @@ t.describe("server.tick", function()
     t.assert_equal(c.closed, false)
     local r2 = server.tick(sv, CTX, 0.05)
     t.assert_equal(r2.served, 1)
-    t.assert_match(c.sent[1], "ok 1.0.0")
+    t.assert_match(c.sent[1], "ok 2.0.0")
   end)
 
   t.it("never blocks: a silent client is left pending, not waited on", function()
@@ -1858,7 +1858,7 @@ Expected: both print the "good" message. A hit on the first would break the Lua 
 mkdir -p /tmp/ma3page && cp src/display.html /tmp/ma3page/index.html
 cat > /tmp/ma3page/api-state.json <<'EOF'
 {"sequence":"Main","cueNumber":"12.5","cueName":"Sermon Wash",
- "activeSequences":["Main","Haze"],"updatedAt":91234.5,"version":"1.0.0"}
+ "activeSequences":["Main","Haze"],"updatedAt":91234.5,"version":"2.0.0"}
 EOF
 cd /tmp/ma3page && python3 -c "
 import http.server, socketserver, json, time
@@ -2126,7 +2126,7 @@ Modules are bundled with `package.preload`, which keeps `require("json")` workin
 # wrapped in package.preload so require() works with no path setup.
 set -euo pipefail
 
-VERSION="1.0.0"
+VERSION="2.0.0"
 LUA=/opt/homebrew/opt/lua@5.4/bin/lua
 OUT_LUA="dist/MA3CueDisplay.lua"
 OUT_XML="dist/MA3CueDisplay.xml"
@@ -2375,7 +2375,7 @@ distribution. `src/ma3.lua` is the only file that touches the grandMA3 API.
 
 ## History
 
-Version 1.0.0 is a complete rewrite. Earlier versions were a macOS menu-bar app
+Version 2.0.0 is a complete rewrite. Earlier versions were a macOS menu-bar app
 (Tauri/Rust) that received OSC over UDP from the console and served the display
 from a Mac. That required a dedicated machine, OSC output configured on the
 console, and an unsigned app users had to talk macOS into opening. The console
@@ -2450,7 +2450,7 @@ probe/             throwaway feasibility plugin, not shipped
 |---|---|
 | Type / stack | grandMA3 Lua plugin — Lua 5.4 + LuaSocket, vanilla frontend |
 | GitHub repo | `upipibi/ma3-cue-display` (public) |
-| Current version | 1.0.0 (defined once, in `build.sh`) |
+| Current version | 2.0.0 (defined once, in `build.sh`) |
 | Ports | 8090 HTTP (configurable in `src/main.lua`) |
 | Host | grandMA3 console |
 | Secrets | none |
@@ -2533,7 +2533,7 @@ console use and that their support may not be able to help with plugin issues.
 
 ## History
 
-Versions before 1.0.0 were a macOS app built with [Tauri](https://tauri.app/)
+Versions before 2.0.0 were a macOS app built with [Tauri](https://tauri.app/)
 (MIT/Apache-2.0), using `warp`, `rosc`, `tokio`, and `serde`. That code and its
 license notices remain in this repository's git history.
 ```
@@ -2587,7 +2587,7 @@ Copy both files to a USB stick, place in `gma3_library/datapools/plugins`, impor
 
 Press **Start Cue Display**, then check each:
 
-- Command Line Feedback prints `version 1.0.0 started` and the URL lines
+- Command Line Feedback prints `version 2.0.0 started` and the URL lines
 - **Move a fader, run a cue, open a window, type in the command line.** The desk must feel completely normal. Any stutter, lag, or hesitation is a stop-the-line failure — press Stop immediately and report it.
 - Press Start a second time: it must print `already running`, not bind twice
 
@@ -2601,7 +2601,7 @@ From a laptop on the same network:
 - Fire the main stack again — it comes back
 - Turn the displayed stack off — the last cue stays on screen, it does not blank
 - `http://<console-ip>:8090/debug` lists the active sequences correctly
-- `http://<console-ip>:8090/health` returns `ok 1.0.0`
+- `http://<console-ip>:8090/health` returns `ok 2.0.0`
 - **Cue numbers with decimals** (e.g. cue 12.5) display as `12.5`, not `12`
 
 - [ ] **Step 4: Verify OBS**
@@ -2627,10 +2627,10 @@ Report the result. **Any console-responsiveness problem blocks the release outri
 
 ---
 
-### Task 13: Release 1.0.0
+### Task 13: Release 2.0.0
 
 **Files:**
-- Create: git tag `v1.0.0` and a GitHub release with both plugin files attached
+- Create: git tag `v2.0.0` and a GitHub release with both plugin files attached
 
 **Interfaces:**
 - Consumes: a passing Task 12
@@ -2650,17 +2650,17 @@ Expected: all tests pass, build succeeds, working tree clean. Confirm with Aaron
 - [ ] **Step 2: Tag**
 
 ```bash
-git tag -a v1.0.0 -m "MA3 Cue Display 1.0.0 — console-hosted Lua plugin"
-git push origin v1.0.0
+git tag -a v2.0.0 -m "MA3 Cue Display 2.0.0 — console-hosted Lua plugin"
+git push origin v2.0.0
 ```
 
 - [ ] **Step 3: Create the release with both plugin files**
 
 ```bash
-gh release create v1.0.0 \
+gh release create v2.0.0 \
   dist/MA3CueDisplay.lua \
   dist/MA3CueDisplay.xml \
-  --title "1.0.0 — console-hosted Lua plugin" \
+  --title "2.0.0 — console-hosted Lua plugin" \
   --notes "$(cat <<'EOF'
 A complete rewrite. The cue display now runs **on the grandMA3 console itself** —
 no companion Mac, no OSC configuration, no unsigned app to talk macOS into
@@ -2697,13 +2697,13 @@ EOF
 - [ ] **Step 4: Verify the release**
 
 ```bash
-gh release view v1.0.0
+gh release view v2.0.0
 ```
 
 Expected: both `MA3CueDisplay.lua` and `MA3CueDisplay.xml` attached. Download the Lua asset and confirm it is the built bundle, not a source file:
 
 ```bash
-gh release download v1.0.0 --pattern 'MA3CueDisplay.lua' --dir /tmp/relcheck --clobber
+gh release download v2.0.0 --pattern 'MA3CueDisplay.lua' --dir /tmp/relcheck --clobber
 head -3 /tmp/relcheck/MA3CueDisplay.lua
 grep -c 'package.preload' /tmp/relcheck/MA3CueDisplay.lua
 ```
@@ -2759,7 +2759,7 @@ The v1.0.1 signed zip is the only build of the Mac app that exists. It is also i
 
 Ask directly, naming what is about to be destroyed:
 
-> Ready to delete `NorthwoodsCommunityChurch/Ma3_Cue_Display`. This is irreversible and takes its issues, releases, and tags with it. The new repo is verified with full history and a 1.0.0 release. Confirm?
+> Ready to delete `NorthwoodsCommunityChurch/Ma3_Cue_Display`. This is irreversible and takes its issues, releases, and tags with it. The new repo is verified with full history and a 2.0.0 release. Confirm?
 
 Do not proceed without a yes.
 
@@ -2789,7 +2789,7 @@ Expected: only `origin` remains, pointing at `upipibi/ma3-cue-display`.
 Add to the `Document history` table in `CLAUDE.md`:
 
 ```markdown
-| 2026-08-04 | Migrated to `upipibi/ma3-cue-display`; `NorthwoodsCommunityChurch/Ma3_Cue_Display` deleted after verifying full history and the 1.0.0 release |
+| 2026-08-04 | Migrated to `upipibi/ma3-cue-display`; `NorthwoodsCommunityChurch/Ma3_Cue_Display` deleted after verifying full history and the 2.0.0 release |
 ```
 
 ```bash
