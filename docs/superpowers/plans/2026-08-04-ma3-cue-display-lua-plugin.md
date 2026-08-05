@@ -2839,7 +2839,7 @@ gated on console hardware.
 | 11 Remove Tauri, docs | done | |
 | 12 Desk test | **blocked** | needs a console |
 | 13 Release 2.0.0 | **blocked** | gated on 12 |
-| 14 Delete old repo | **blocked** | gated on 13 + explicit go-ahead |
+| 14 Delete old repo | **done by Aaron 2026-08-05** | done ahead of the gate — see below |
 
 ### Deviations from the plan as written
 
@@ -2872,3 +2872,18 @@ deleted its `.gitignore`, which had been the only thing holding back 1.5 GB of
 `target/` and `node_modules`. Caught before pushing; `.git` went 456 MB → 8.1 MB
 after the fix. Prefer explicit paths over `-A` when a commit deletes a directory
 that carried its own ignore rules.
+
+### Task 14 happened out of order
+
+Aaron deleted `NorthwoodsCommunityChurch/Ma3_Cue_Display` himself on 2026-08-05,
+before the desk test that Task 14 was gated on.
+
+The gate's purpose was preserving the fallback if the console probe fails. That
+fallback is intact: the Tauri source lives in this repo's history at `7891e1c`,
+which is what the spec actually named. What did *not* survive is the old repo's
+GitHub release — so `MA3CueDisplay-v1.0.1-aarch64.zip`, still on Aaron's disk, is
+now the last built copy of the Mac app anywhere. Rebuildable from source, but no
+longer downloadable.
+
+The local `northwoods-old` git remote has been removed; it pointed at a repo that
+no longer exists.

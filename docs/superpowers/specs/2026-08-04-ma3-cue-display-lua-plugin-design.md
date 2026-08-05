@@ -274,7 +274,11 @@ unambiguously above everything before it.
 3. Build, then run the probe on the console, then desk-test.
 4. **Only after a passing desk test**: tag and release. A release is now two text files plus
    a convenience zip. No `.app`, no `codesign`, no `xattr -cr`, no Gatekeeper, no Sparkle.
-5. **Delete `NorthwoodsCommunityChurch/Ma3_Cue_Display` last**, after cloning the new repo
+5. ~~**Delete `NorthwoodsCommunityChurch/Ma3_Cue_Display` last**~~ — **done by Aaron on
+   2026-08-05**, ahead of this gate. The fallback survives regardless: the Tauri source is
+   in this repo's history at `7891e1c`. The old repo's GitHub release did not survive, so the
+   local `MA3CueDisplay-v1.0.1-aarch64.zip` is now the last built copy of the Mac app.
+   Original wording follows. After cloning the new repo
    fresh and confirming history and releases came across. Requires explicit go-ahead at that
    moment — deletion takes issues, releases, and tags with it and is irreversible.
 
