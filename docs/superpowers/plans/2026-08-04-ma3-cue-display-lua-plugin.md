@@ -813,7 +813,7 @@ return M
 ./run-tests.sh
 ```
 
-Expected: `22 passed, 0 failed`.
+Expected: `21 passed, 0 failed`.
 
 - [ ] **Step 5: Commit**
 
