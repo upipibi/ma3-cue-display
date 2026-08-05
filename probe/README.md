@@ -39,6 +39,7 @@ as a silently broken plugin.
 | `socket: FAIL` | **Hard blocker.** Stop and report — do not work around it. |
 | `bind 8090: OK` | The console permits a listening socket. |
 | `bind 8090: FAIL` | Port is taken or blocked. Report the error text; the port is configurable. |
+| `globalvars: ... returned 1` | SetVar/GetVar persist, so the toggle can stop the plugin. A warning here means it starts but the button cannot stop it. |
 | `scan: ... took N ms` | How much UI-thread time one full sequence sweep costs. Sets the cue poll rate. |
 | `scan: WARNING` | Over 20 ms per sweep. Report it — 5 Hz polling would be too aggressive. |
 | `active: ... cue.name=nil` | Cue names are not readable this way and the display design needs revisiting. |

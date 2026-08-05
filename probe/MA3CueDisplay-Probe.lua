@@ -108,6 +108,29 @@ local function probe_sequences()
   end
 end
 
+-- The toggle depends entirely on this round-tripping. If GlobalVars does not
+-- persist a value, the plugin can start but never be stopped from the button.
+local function probe_globalvars()
+  local ok, err = pcall(function()
+    SetVar(GlobalVars(), "MA3CueDisplayProbe", 1)
+  end)
+  if not ok then
+    line("globalvars: FAIL on SetVar -- %s", tostring(err))
+    return
+  end
+
+  local got = select(2, pcall(function()
+    return GetVar(GlobalVars(), "MA3CueDisplayProbe")
+  end))
+  line("globalvars: SetVar/GetVar round-trip returned %s (want 1)", tostring(got))
+
+  if tonumber(got) ~= 1 then
+    line("globalvars: WARNING -- the toggle will not be able to stop the plugin")
+  end
+
+  pcall(function() SetVar(GlobalVars(), "MA3CueDisplayProbe", 0) end)
+end
+
 local function probe_yield(sock)
   -- os.clock() measures CPU time, which stays near zero while yielding, so it
   -- cannot tell us whether the engine actually resumed us on schedule. Use a
@@ -129,6 +152,7 @@ return function()
   probe_version()
   local sock = probe_socket()
   probe_bind(sock, 8090)
+  probe_globalvars()
   probe_sequences()
   probe_yield(sock)
   line("==== probe complete ====")
