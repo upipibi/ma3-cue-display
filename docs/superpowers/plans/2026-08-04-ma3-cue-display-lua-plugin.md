@@ -2816,3 +2816,59 @@ git push
 - Tasks 12–14 are gated in sequence: desk test → release → delete the old repo.
 
 **If the probe reports `socket: FAIL`:** stop. Do not work around it. The console-hosted design is dead, the Tauri app is still in git history, and the design needs revisiting with Aaron before any more code is written.
+
+---
+
+## Execution record (2026-08-05)
+
+Tasks 1–11 are complete on branch `rewrite/console-lua-plugin`. Tasks 12–14 are
+gated on console hardware.
+
+| Task | Status | Notes |
+|---|---|---|
+| 1 Repo migration | done | `upipibi/ma3-cue-display`, public, full history + tags |
+| 2 Probe plugin | done | built, awaiting a desk run |
+| 3 Runner + JSON | done | 10 tests |
+| 4 State tracking | done | 21 tests |
+| 5 HTTP layer | done | 40 tests |
+| 6 Server state machine | done | 54 tests |
+| 7 MA3 adapter | done | 66 tests |
+| 8 Display page | done | 3 modes + both stale paths verified in a real browser |
+| 9 Entry point | done | built ahead of the probe gate, deliberately — see below |
+| 10 Build + harness | done | 68 tests; artifact runs end-to-end locally |
+| 11 Remove Tauri, docs | done | |
+| 12 Desk test | **blocked** | needs a console |
+| 13 Release 2.0.0 | **blocked** | gated on 12 |
+| 14 Delete old repo | **blocked** | gated on 13 + explicit go-ahead |
+
+### Deviations from the plan as written
+
+- **Task 9 was built before its probe gate cleared.** The gate exists so nobody
+  writes a server against an unverified socket library. Building it anyway cost
+  ~130 lines of exposure and bought a single console trip instead of two, since
+  the probe and the finished plugin can now be carried to the desk together.
+- **Task 10 no longer needs an XML export from the console.** The schema was
+  derivable from published plugins, so it is generated from a tracked template.
+- **`server.lua` added** — see the spec's As-built section.
+- **Start/Stop became one toggling component** — same.
+- **Test counts in Tasks 4–7 were wrong as written** and have been corrected to
+  measured values. Coverage was also extended past the plan in Tasks 5, 6, and 7.
+
+### Two bugs the plan's own code contained
+
+Both were caught by running things rather than reasoning about them, and both
+are now pinned by tests:
+
+1. Stale detection could not detect a wedged console (conflated timers).
+2. `%.6g` collapsed the `updatedAt` heartbeat to `1.78595e+09`.
+
+The second is the argument for `tools/fake-console.lua` existing at all: every
+module passed its own unit tests, and the bug lived in how they composed.
+
+### One process note worth keeping
+
+`git add -A` in Task 11 staged 3,332 build-output files — removing the Tauri app
+deleted its `.gitignore`, which had been the only thing holding back 1.5 GB of
+`target/` and `node_modules`. Caught before pushing; `.git` went 456 MB → 8.1 MB
+after the fix. Prefer explicit paths over `-A` when a commit deletes a directory
+that carried its own ignore rules.

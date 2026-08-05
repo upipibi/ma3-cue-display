@@ -1,7 +1,9 @@
 # MA3 Cue Display — console-hosted Lua plugin
 
 **Date:** 2026-08-04
-**Status:** approved design, not yet implemented
+**Status:** implemented 2026-08-05 and verified locally; awaiting console hardware
+verification. See "As built" at the bottom for where reality diverged from this
+design.
 **Replaces:** the macOS Tauri app (v1.0.1) entirely
 **Version of the new product:** 2.0.0 (see Versioning)
 
@@ -312,3 +314,74 @@ where the read would go.
 | Plugin breaks on an MA3 software upgrade | MA documents this explicitly for all plugins. Mitigated by keeping `ma3.lua` thin and isolated. |
 | Wedged loop during a service | `pcall` per tick, watchdog exit, explicit Stop macro |
 | MA support won't help with plugin issues | Stated in MA's own docs. Accepted. |
+
+---
+
+## As built (2026-08-05)
+
+Five things changed during implementation. Each is recorded here because the
+reasoning matters more than the decision.
+
+### 1. Toggle, not a Start/Stop pair
+
+This design assumed two plugin components. A real grandMA3 `ComponentLua` points
+at its **own `FileName`**, so two components would mean shipping two `.lua` files
+and building two macros. The plugin is now a single toggling component: press to
+start, press again to stop. One file, one macro. The double-start guard became
+the toggle.
+
+### 2. The plugin XML schema was guessed wrong
+
+The plan sketched `<UserPlugin>`. The real shape, taken from two independently
+published exported plugins ([hossimo/GMA3Plugins](https://github.com/hossimo/GMA3Plugins),
+[imhofroger/GMA3_LUA](https://github.com/imhofroger/GMA3_LUA)), is:
+
+```xml
+<GMA3 DataVersion="1.0.0.3">
+    <Plugin Name="..." Author="..." Version="2.0.0.0">
+        <ComponentLua Name="..." FileName="....lua" Installed="Yes" LoadOnDemand="Yes" />
+    </Plugin>
+</GMA3>
+```
+
+`Plugin Version` is 4-part. Because the schema turned out to be derivable from
+public sources, the plan's requirement to collect an export from Aaron's console
+was dropped — it is now generated from `src/plugin.xml.template`, so `dist/`
+stays fully gitignored rather than carrying a committed XML.
+
+### 3. A `server.lua` module was added
+
+Splitting the non-blocking connection state machine out of `main.lua` made it
+testable with mock sockets. That is where the subtle bugs live: partial reads
+across ticks, client ageing, pending-queue overflow.
+
+### 4. Two bugs that only surfaced by running it
+
+Both were in code this design had already blessed:
+
+- **Stale detection could not detect the failure it existed for.** The dim was
+  gated behind `Date.now() - lastGoodAt > STALE_MS`, but `lastGoodAt` refreshes on
+  every successful fetch. A console that answers HTTP while its tick loop has
+  wedged keeps that term at ~0, so a dead cue displayed at full brightness
+  indefinitely. Unreachable and wedged now have separate timers and distinct
+  messages.
+- **`%.6g` destroyed the heartbeat.** The JSON encoder rendered `updatedAt` —
+  a Unix timestamp needing 13 digits — as `1.78595e+09`, byte-identical for
+  ~2.8 hours of real time. Every viewer would have dimmed within two seconds of
+  loading and never recovered. Now `%.14g`, pinned by regression tests.
+
+The second was caught only by `tools/fake-console.lua`, which runs the built
+artifact against a stubbed object model and a scheduler honoring
+`coroutine.yield`. Unit tests could not see it: each module was individually
+correct. **That harness is the single most valuable thing to keep.**
+
+### 5. Added `/favicon.ico` → 204
+
+Browsers and OBS request it unprompted on every load. A 404 sends every viewer
+back through the console's pending queue on repeat.
+
+### What is still unverified
+
+Everything in the Feasibility gate above. `probe/` remains the hard gate, and
+`require("socket")` on console hardware is still the question that can kill this
+design. Local verification is not hardware verification.
