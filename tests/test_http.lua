@@ -1,0 +1,118 @@
+local t = require("runner")
+local http = require("http")
+
+local CTX = { html = "<html>page</html>", state_json = '{"a":1}', version = "2.0.0" }
+
+t.describe("http.parse_request", function()
+  t.it("parses a plain GET", function()
+    local r = http.parse_request("GET / HTTP/1.1")
+    t.assert_equal(r.method, "GET")
+    t.assert_equal(r.path, "/")
+    t.assert_equal(r.query, "")
+  end)
+
+  t.it("splits path from query", function()
+    local r = http.parse_request("GET /?style=overlay HTTP/1.1")
+    t.assert_equal(r.path, "/")
+    t.assert_equal(r.query, "style=overlay")
+  end)
+
+  t.it("parses HTTP/1.0", function()
+    local r = http.parse_request("GET /health HTTP/1.0")
+    t.assert_equal(r.path, "/health")
+  end)
+
+  t.it("parses a non-GET method", function()
+    local r = http.parse_request("POST /api/state HTTP/1.1")
+    t.assert_equal(r.method, "POST")
+  end)
+
+  t.it("returns nil on garbage", function()
+    t.assert_nil(http.parse_request("hello"))
+    t.assert_nil(http.parse_request(""))
+    t.assert_nil(http.parse_request("GET /"))
+    t.assert_nil(http.parse_request(nil))
+  end)
+end)
+
+t.describe("http.query_param", function()
+  t.it("finds a parameter", function()
+    t.assert_equal(http.query_param("style=overlay", "style"), "overlay")
+    t.assert_equal(http.query_param("a=1&style=overlay&b=2", "style"), "overlay")
+  end)
+
+  t.it("returns nil when absent", function()
+    t.assert_nil(http.query_param("a=1", "style"))
+    t.assert_nil(http.query_param("", "style"))
+    t.assert_nil(http.query_param(nil, "style"))
+  end)
+end)
+
+t.describe("http.response", function()
+  t.it("builds a well-formed response", function()
+    local r = http.response(200, "text/plain", "hi")
+    t.assert_match(r, "HTTP/1.1 200 OK\r\n")
+    t.assert_match(r, "Content-Type: text/plain\r\n")
+    t.assert_match(r, "Content-Length: 2\r\n")
+    t.assert_match(r, "Connection: close\r\n")
+    t.assert_match(r, "Cache-Control: no-store\r\n")
+    t.assert_match(r, "Access-Control-Allow-Origin: *\r\n")
+    t.assert_match(r, "\r\n\r\nhi")
+  end)
+
+  t.it("uses the right reason phrase", function()
+    t.assert_match(http.response(404, "text/plain", ""), "404 Not Found")
+    t.assert_match(http.response(405, "text/plain", ""), "405 Method Not Allowed")
+    t.assert_match(http.response(503, "text/plain", ""), "503 Service Unavailable")
+    t.assert_match(http.response(400, "text/plain", ""), "400 Bad Request")
+  end)
+
+  t.it("computes Content-Length in bytes, not characters", function()
+    t.assert_match(http.response(200, "text/plain", "\xc3\xa9"), "Content-Length: 2\r\n")
+  end)
+
+  t.it("tolerates a nil body", function()
+    t.assert_match(http.response(200, "text/plain", nil), "Content-Length: 0\r\n")
+  end)
+end)
+
+t.describe("http.route", function()
+  t.it("serves the page at /", function()
+    local r = http.route({ method = "GET", path = "/", query = "" }, CTX)
+    t.assert_match(r, "200 OK")
+    t.assert_match(r, "text/html")
+    t.assert_match(r, "<html>page</html>")
+  end)
+
+  t.it("serves the same page at /debug", function()
+    local r = http.route({ method = "GET", path = "/debug", query = "" }, CTX)
+    t.assert_match(r, "<html>page</html>")
+  end)
+
+  t.it("serves the page unchanged for ?style=overlay", function()
+    local plain = http.route({ method = "GET", path = "/", query = "" }, CTX)
+    local overlay = http.route({ method = "GET", path = "/", query = "style=overlay" }, CTX)
+    t.assert_equal(overlay, plain)
+  end)
+
+  t.it("serves cached JSON at /api/state", function()
+    local r = http.route({ method = "GET", path = "/api/state", query = "" }, CTX)
+    t.assert_match(r, "application/json")
+    t.assert_match(r, '{"a":1}')
+  end)
+
+  t.it("serves health with the version", function()
+    local r = http.route({ method = "GET", path = "/health", query = "" }, CTX)
+    t.assert_match(r, "ok 2.0.0")
+  end)
+
+  t.it("404s an unknown path", function()
+    t.assert_match(http.route({ method = "GET", path = "/nope", query = "" }, CTX),
+      "404 Not Found")
+  end)
+
+  t.it("405s a non-GET method", function()
+    t.assert_match(http.route({ method = "POST", path = "/", query = "" }, CTX),
+      "405 Method Not Allowed")
+  end)
+end)
