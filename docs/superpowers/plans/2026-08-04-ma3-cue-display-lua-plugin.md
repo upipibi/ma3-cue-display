@@ -1576,7 +1576,7 @@ return M
 ./run-tests.sh
 ```
 
-Expected: `55 passed, 0 failed`.
+Expected: `65 passed, 0 failed`.
 
 - [ ] **Step 5: Commit**
 
