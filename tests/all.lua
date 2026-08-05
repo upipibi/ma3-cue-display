@@ -5,5 +5,6 @@ local runner = require("runner")
 require("test_json")
 require("test_state")
 require("test_http")
+require("test_server")
 
 runner.report()

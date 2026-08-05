@@ -1356,7 +1356,7 @@ return M
 ./run-tests.sh
 ```
 
-Expected: `47 passed, 0 failed`.
+Expected: `53 passed, 0 failed`.
 
 If the partial-read test fails, check that `read_pass` appends `partial` to `entry.buf` **before** the size check — LuaSocket returns already-consumed bytes in the third return value and they are lost if not accumulated.
 
