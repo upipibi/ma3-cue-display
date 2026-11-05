@@ -10,6 +10,29 @@ over HTTP to browsers and OBS. No companion app, no OSC. Personal project under
 
 ---
 
+## Out-of-session changes
+
+### 2026-11-05 — work done from MA3 MCP
+
+- Aaron imported 2.0.0 on the console (grandMA3 2.5.1.1, show `Christmas 2026`, Plugin 38). The console
+  flagged `SYNTAXERROR` on the component and treated the plugin as a library resource, not showfile data.
+- Fixed `src/server.lua` `read_pass`: it assigned to `_`, the enclosing loop's control variable. The
+  console runs **Lua 5.5** on 2.5 (not 5.4.4), where that is a syntax error.
+- `src/plugin.xml.template` now uses the plain form proven with the MA3 MCP plugin the same day:
+  `DataVersion="2.5.1.1"`, bare `ComponentLua` with no `Installed` / `LoadOnDemand`. With those two
+  attributes the console read `ISRESOURCE=true`, `INSTREAM=false`, path `shared/resource/lib_plugins`.
+- `run-tests.sh` and `build.sh` now run on Lua 5.5 first and 5.4 as a check. `run-fake-console.sh` is
+  still pinned to 5.4 (its LuaSocket rock is installed for 5.4 only).
+- Re-imported on the console the same day as `Plugin 38` and verified: `SYNTAXERROR=false`, `INSTREAM=true`,
+  `ISRESOURCE=false`, `/health` answers `ok 2.0.0`, `/api/state` returns JSON. So LuaSocket exists on console
+  hardware and the plugin XML imports (two items the Status block below still lists as unverified).
+- Version left at 2.0.0 (Aaron decides on a bump).
+- Feature idea Aaron started designing in that session, paused: also show timecode slots 1 and 2 and the fades
+  of every running cue, in one fixed-size frame for a single OBS crop, song and key sequences only. Notes are in
+  the MA3 MCP project's CLAUDE.md ("Paused 2026-11-05: Cue Display feature design").
+- **Verify:** `./run-tests.sh` (68 passed on both versions), `./build.sh`, `luac5.5 -p dist/MA3CueDisplay.lua`;
+  on the console after re-import, `Plugin <n>.1` should read `SYNTAXERROR=false`, `INSTREAM=true`.
+
 ## Status — 2026-08-05
 - **Stage:** rewritten from the macOS Tauri app to a console-hosted Lua plugin.
   **Built and verified locally; not yet run on real console hardware.**
@@ -105,8 +128,9 @@ from a tracked template.
   `settimeout(0)` the request bytes usually have not arrived in the same tick as
   the accept, and LuaSocket returns already-consumed bytes in `receive`'s third
   return value — they are lost unless accumulated.
-- **Test under `lua@5.4`, not the Mac's default.** Homebrew's plain `lua` is 5.5;
-  the console runs 5.4.4. `run-tests.sh` pins the right one.
+- **The console runs Lua 5.5 on grandMA3 2.5** (`_VERSION = "Lua 5.5"`, read on 2.5.1). Tests and the
+  build verify on 5.5 first, then 5.4. 5.5 makes for-loop control variables read-only: never assign
+  to `_` (or any loop variable) inside its loop. 2.0.0 did, passed on 5.4, and failed on the desk.
 - **All MA3 API access stays in `src/ma3.lua`.** `src/main.lua` may use
   `Printf`/`GetVar`/`SetVar`/`GlobalVars` only. Keeping the pure modules free of
   console globals is what makes them testable off-console.
@@ -126,8 +150,9 @@ from a tracked template.
 - **The plugin is a toggle, not Start/Stop.** A `ComponentLua` points at its own
   `FileName`, so two components would mean two `.lua` files and two macros.
 - **Plugin XML is `GMA3 > Plugin > ComponentLua`.** Verified against two real
-  exported plugins in public repos, not guessed. `DataVersion="1.0.0.3"`, and the
-  `Plugin Version` attribute is 4-part (`2.0.0.0`).
+  exported plugins in public repos, not guessed. The `Plugin Version` attribute is 4-part
+  (`2.0.0.0`). Keep `ComponentLua` bare (`Name` + `FileName` only): with `Installed="Yes"
+  LoadOnDemand="Yes"` the console imported it as a library resource that cannot live in the showfile.
 - **`src/display.html` must never contain `]==]`** — it is embedded in a Lua long
   string. `build.sh` fails the build if it does.
 - **No external assets in the page.** The console has no internet route; a
@@ -149,3 +174,4 @@ from a tracked template.
 |---|---|
 | 2026-05-29 | Initial CLAUDE.md to Northwoods standard, for the Tauri macOS app |
 | 2026-08-05 | Rewritten for the console-hosted Lua plugin; moved to `upipibi`; version 2.0.0 |
+| 2026-11-05 | First console import failed (Lua 5.5 syntax error, resource-form XML); fixed from the MA3 MCP session, see Out-of-session changes |

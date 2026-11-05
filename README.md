@@ -100,7 +100,7 @@ If the page dims, it names which failure it is:
 ## Building from source
 
 ```bash
-brew install lua@5.4     # the console runs 5.4; the Mac's default lua is newer
+brew install lua@5.5 lua@5.4   # the console runs 5.5 on grandMA3 2.5; 5.4 is a compatibility check
 ./run-tests.sh           # unit tests for the pure modules
 ./build.sh               # produces dist/MA3CueDisplay.lua and .xml
 ```

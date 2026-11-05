@@ -8,7 +8,9 @@ set -euo pipefail
 VERSION="2.0.0"
 XML_VERSION="${VERSION}.0"   # grandMA3 plugin XML wants a 4-part version
 
-LUA=/opt/homebrew/opt/lua@5.4/bin/lua
+# The console runs Lua 5.5 on grandMA3 2.5; 5.4 is kept as a check for older software.
+LUA=/opt/homebrew/opt/lua@5.5/bin/lua
+LUA_COMPAT=/opt/homebrew/opt/lua@5.4/bin/lua
 MODULES=(json state http server ma3)
 OUT_LUA="dist/MA3CueDisplay.lua"
 OUT_XML="dist/MA3CueDisplay.xml"
@@ -16,10 +18,12 @@ OUT_XML="dist/MA3CueDisplay.xml"
 cd "$(dirname "$0")"
 mkdir -p dist
 
-if [[ ! -x "$LUA" ]]; then
-  echo "ERROR: Lua 5.4 not found at $LUA — run: brew install lua@5.4" >&2
-  exit 1
-fi
+for l in "$LUA" "$LUA_COMPAT"; do
+  if [[ ! -x "$l" ]]; then
+    echo "ERROR: Lua not found at $l — run: brew install lua@5.5 lua@5.4" >&2
+    exit 1
+  fi
+done
 
 # The page is embedded in a [==[ ... ]==] long string. A literal ]==] in the
 # HTML would terminate it early and produce a syntax error on the console.
@@ -75,7 +79,8 @@ sed "s/@@XML_VERSION@@/${XML_VERSION}/" src/plugin.xml.template > "$OUT_XML"
 # Load the bundle for real, with the MA3 globals stubbed, and confirm the
 # modules resolve and the entry point comes back. A syntax check alone would
 # miss a package.preload name that does not match its require.
-"$LUA" - "$OUT_LUA" <<'VERIFY'
+verify_bundle() {
+"$1" - "$OUT_LUA" <<'VERIFY'
 local path = arg[1]
 local chunk = assert(loadfile(path))
 Printf = function() end
@@ -90,8 +95,11 @@ assert(require("ma3").format_cue_number(12500) == "12.5", "ma3 module broken")
 assert(require("state").new().displayed.cueNumber == "--", "state module broken")
 assert(require("http").parse_request("GET / HTTP/1.1").path == "/", "http module broken")
 assert(type(require("server").tick) == "function", "server module broken")
-print("bundle verified: modules resolve, page embedded, entry point returned")
+print("bundle verified on " .. _VERSION .. ": modules resolve, page embedded, entry point returned")
 VERIFY
+}
+verify_bundle "$LUA"
+verify_bundle "$LUA_COMPAT"
 
 echo "built ${OUT_LUA} ($(wc -c < "$OUT_LUA" | tr -d ' ') bytes)"
 echo "built ${OUT_XML} (plugin ${XML_VERSION})"

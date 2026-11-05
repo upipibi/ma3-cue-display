@@ -58,7 +58,10 @@ local function read_pass(sv, ctx, stats, now)
   for _, entry in ipairs(sv.pending) do
     local line, partial
     local ok = pcall(function()
-      line, _, partial = entry.sock:receive("*l")
+      -- Own locals here: `_` outside is the loop's control variable, which Lua 5.5
+      -- (the console's version on 2.5) makes read-only. Assigning to it is a syntax error.
+      local received, _, rest = entry.sock:receive("*l")
+      line, partial = received, rest
     end)
 
     if not ok then
