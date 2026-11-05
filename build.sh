@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # The single source of truth for the version. Nothing else hardcodes it.
-VERSION="2.0.0"
+VERSION="2.0.1"
 XML_VERSION="${VERSION}.0"   # grandMA3 plugin XML wants a 4-part version
 
 # The console runs Lua 5.5 on grandMA3 2.5; 5.4 is kept as a check for older software.

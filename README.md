@@ -37,8 +37,8 @@ connection inside a cooperative single-coroutine server is a liability, and
 1. Copy `MA3CueDisplay.lua` and `MA3CueDisplay.xml` onto a USB stick.
 2. On the console, put both in `gma3_library/datapools/plugins`.
 3. Import the plugin in the Plugin Pool.
-4. Set the plugin's **InStream** property so it is stored in the show file. It
-   then travels with the show and survives a console reboot.
+4. Check the plugin's **InStream** property is on, so the code is stored in the show
+   file and travels with the show. From 2.0.1 the console sets it by itself on import.
 5. Make one macro, `Cue Display`, containing `Plugin "MA3CueDisplay"`.
 6. Put that macro on an executor button.
 

@@ -2,7 +2,7 @@
 
 A grandMA3 **Lua plugin** that runs on the console and serves a live cue display
 over HTTP to browsers and OBS. No companion app, no OSC. Personal project under
-`upipibi`. Stack: **Lua 5.4 + LuaSocket + vanilla HTML/CSS/JS**.
+`upipibi`. Stack: **Lua 5.5 (the console's version; 5.4 as a check) + LuaSocket + vanilla HTML/CSS/JS**.
 
 > **Read first:** [README.md](README.md) for install and OBS setup.
 > Design rationale: [docs/superpowers/specs/2026-08-04-ma3-cue-display-lua-plugin-design.md](docs/superpowers/specs/2026-08-04-ma3-cue-display-lua-plugin-design.md)
@@ -26,29 +26,30 @@ over HTTP to browsers and OBS. No companion app, no OSC. Personal project under
 - Re-imported on the console the same day as `Plugin 38` and verified: `SYNTAXERROR=false`, `INSTREAM=true`,
   `ISRESOURCE=false`, `/health` answers `ok 2.0.0`, `/api/state` returns JSON. So LuaSocket exists on console
   hardware and the plugin XML imports (two items the Status block below still lists as unverified).
-- Version left at 2.0.0 (Aaron decides on a bump).
+- Released as 2.0.1 the same evening on Aaron's word (GitHub release `v2.0.1`, zip with the two plugin files).
+  The copy on the console still reports 2.0.0 until it is imported again; the code is the same.
 - Feature idea Aaron started designing in that session, paused: also show timecode slots 1 and 2 and the fades
   of every running cue, in one fixed-size frame for a single OBS crop, song and key sequences only. Notes are in
   the MA3 MCP project's CLAUDE.md ("Paused 2026-11-05: Cue Display feature design").
 - **Verify:** `./run-tests.sh` (68 passed on both versions), `./build.sh`, `luac5.5 -p dist/MA3CueDisplay.lua`;
   on the console after re-import, `Plugin <n>.1` should read `SYNTAXERROR=false`, `INSTREAM=true`.
 
-## Status — 2026-08-05
-- **Stage:** rewritten from the macOS Tauri app to a console-hosted Lua plugin.
-  **Built and verified locally; not yet run on real console hardware.**
-- **Works (verified):** 68 unit tests green; the built artifact runs end-to-end
-  under `./run-fake-console.sh` against a stubbed object model, serving a real
-  browser — cues advance, a stopped stack holds its last cue, a never-playing
-  sequence never appears, tick loop holds ~19 resumes/sec against 20 Hz. All
-  three display modes verified in-browser, including both stale paths.
-- **Not yet verified (needs the desk):**
-  - **Does LuaSocket exist on console hardware?** Confirmed on onPC/Windows only.
-    `probe/` answers this and is the hard gate. If it fails this design is dead,
-    and the Tauri app is recoverable from git history (see `7891e1c`).
-  - Whether `cue.name` reads correctly on a real show file.
-  - How long a full sequence sweep takes on a real show file — that decides
-    whether 5 Hz cue polling is safe.
-  - Whether the console imports the plugin XML without complaint.
+## Status — 2026-11-05
+- **Stage:** 2.0.1 released. Runs on a grandMA3 light (2.5.1.1), stored in the show file.
+- **Works (verified on the console, 2026-11-05):** LuaSocket exists on console hardware; the plugin
+  XML imports through the GUI and the code lands in the show file with no manual step
+  (`INSTREAM=true`); the plugin starts, `/health` answers and `/api/state` returns JSON; the page
+  opens in a browser on the network.
+- **Works (verified locally):** 68 unit tests green on Lua 5.5 and 5.4; the built artifact runs
+  end-to-end under `./run-fake-console.sh` against a stubbed object model, serving a real browser —
+  cues advance, a stopped stack holds its last cue, a never-playing sequence never appears, tick
+  loop holds ~19 resumes/sec against 20 Hz. All three display modes verified in-browser.
+- **Not yet verified (needs a running show):**
+  - Whether `cue.name` reads correctly while sequences play on a real show file (the console was
+    idle when checked: `activeSequences` empty).
+  - How long a full sequence sweep takes on a real show file — that decides whether 5 Hz cue
+    polling is safe.
+  - Survival of a console restart with the USB stick removed.
 - **Known limitations:**
   - **No auto-start on a console.** One macro press per session. `RUNPLUGIN` is
     onPC-only and there is no supported on-show-load hook.
@@ -98,9 +99,9 @@ probe/                    throwaway feasibility plugin, not shipped
 ## Key identifiers
 | Thing | Value |
 |---|---|
-| Type / stack | grandMA3 Lua plugin — Lua 5.4 + LuaSocket, vanilla frontend |
+| Type / stack | grandMA3 Lua plugin — Lua 5.5 on the console (5.4 kept as a check) + LuaSocket, vanilla frontend |
 | GitHub repo | `upipibi/ma3-cue-display` (public) |
-| Current version | 2.0.0 (defined once, in `build.sh`) |
+| Current version | 2.0.1 (defined once, in `build.sh`) |
 | Ports | 8090 HTTP (configurable in `src/main.lua`) |
 | Host | grandMA3 console |
 | Secrets | none |
@@ -108,13 +109,14 @@ probe/                    throwaway feasibility plugin, not shipped
 
 ## Build / Run / Release
 ```bash
-brew install lua@5.4
-./run-tests.sh          # must pass before any commit
+brew install lua@5.5 lua@5.4
+./run-tests.sh          # must pass before any commit (runs on 5.5, then 5.4)
 ./build.sh              # -> dist/MA3CueDisplay.lua + .xml
 ./run-fake-console.sh   # exercise the real artifact with no console
 ```
 
-A release is two generated text files. No signing, no notarization, no Sparkle,
+A release is two generated text files, zipped as `MA3CueDisplay-<version>.zip` on a GitHub release
+tagged `v<version>` (first one: `v2.0.1`). No signing, no notarization, no Sparkle,
 no `xattr -cr`, no Gatekeeper. That whole class of problem left with the Mac app.
 
 `dist/` is fully gitignored — both artifacts are generated, and the XML comes
@@ -175,3 +177,4 @@ from a tracked template.
 | 2026-05-29 | Initial CLAUDE.md to Northwoods standard, for the Tauri macOS app |
 | 2026-08-05 | Rewritten for the console-hosted Lua plugin; moved to `upipibi`; version 2.0.0 |
 | 2026-11-05 | First console import failed (Lua 5.5 syntax error, resource-form XML); fixed from the MA3 MCP session, see Out-of-session changes |
+| 2026-11-05 | Released 2.0.1; Status rewritten for what the console run proved |
