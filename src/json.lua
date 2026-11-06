@@ -3,6 +3,10 @@
 -- byte-deterministic and testable.
 local M = {}
 
+-- A marker for "null inside a table". Lua tables cannot hold nil, so an empty grid
+-- slot or an unknown fade is written as json.null and encodes as null.
+M.null = setmetatable({}, { __tostring = function() return "null" end })
+
 local ESCAPES = {
   ['"'] = '\\"', ["\\"] = "\\\\", ["\b"] = "\\b", ["\f"] = "\\f",
   ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t",
@@ -45,6 +49,7 @@ function M.encode(v)
   elseif tv == "string" then
     return '"' .. escape_string(v) .. '"'
   elseif tv == "table" then
+    if v == M.null then return "null" end
     local parts = {}
     if is_array(v) then
       for i = 1, #v do parts[i] = M.encode(v[i]) end

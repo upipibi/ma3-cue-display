@@ -18,6 +18,8 @@ on a confidence monitor, a phone, or as an OBS browser source.
 |---|---|
 | `http://<console-ip>:8090/` | Full-screen display for a monitor |
 | `http://<console-ip>:8090/?style=overlay` | Transparent overlay for OBS |
+| `http://<console-ip>:8090/grid` | Fixed 1280 x 800 grid: two timecode clocks and up to eight running sequences with their cue fades |
+| `http://<console-ip>:8090/grid?style=overlay` | The same grid with a transparent background, for OBS |
 | `http://<console-ip>:8090/debug` | Active sequences, poll stats, raw state |
 | `http://<console-ip>:8090/api/state` | JSON, if you want to build something else |
 | `http://<console-ip>:8090/health` | Liveness check |
@@ -25,6 +27,37 @@ on a confidence monitor, a phone, or as an OBS browser source.
 Viewers poll `/api/state` every 250 ms. There is no WebSocket: a held-open
 connection inside a cooperative single-coroutine server is a liability, and
 250 ms is invisible on a cue display.
+
+## The grid view
+
+`/grid` is one frame of exactly **1280 x 800** pixels, pinned to the top-left corner of the
+page. It never changes size and nothing inside it moves, so you place or crop it once.
+
+- **Two timecode clocks** along the top, slots 1 and 2, as `HH:MM:SS:FF`. A slot that is not
+  rolling stays in place, greyed, and reads `stopped`.
+- **Eight slots** below, two across and four down, always drawn. An empty slot is a faint
+  outline. A running sequence takes a slot and keeps it until it stops; then the slot goes back
+  to an outline and nothing else moves.
+- **Each occupied slot** shows the sequence name, the cue number and name, and the cue's fade:
+  a bar that fills while the fade runs with the seconds remaining, then `fade 4 s`. A fade of
+  zero reads `snap`.
+
+Which sequences appear: the ones that are running and numbered **1 to 89**. A sequence that
+starts takes the slot it had before if that is free, otherwise the first free slot. If all eight
+are taken, a ninth waits for one to free up.
+
+What the grid is not:
+
+- **The fade is the programmed fade**, read from the cue (part 0, in fade) and counted from the
+  moment the cue fires. It does not follow an executor time fader, a rate or speed master, a
+  manual crossfade, or individual attribute timing. If the cue has no fade value the bar is
+  hidden.
+- **The timecode is a monitor, not a sync reference.** It is sampled 20 times a second and
+  smoothed in the page; expect it within a frame or two of the console.
+- Firing the cue a sequence is already on does not restart its bar.
+
+The range, the slots shown and the frame rate are the `grid_from`, `grid_to`, `timecode_slots`
+and `timecode_fps` values in `CONFIG` at the top of `src/main.lua`.
 
 ## Requirements
 
@@ -72,6 +105,15 @@ the button once more to start.
 The page background is fully transparent in overlay mode, so it keys straight
 over a camera input with no chroma key.
 
+For the grid view:
+
+1. Add a **Browser** source.
+2. URL: `http://<console-ip>:8090/grid` (or `/grid?style=overlay` to lay it over video).
+3. Width 1280, Height 800. The source is then exactly the frame, with no crop needed.
+
+If you capture a browser window instead, crop to the top-left 1280 x 800: the frame sits there
+at any window size.
+
 ## When it shows the wrong thing
 
 Open `/debug`. It lists every sequence the console reports as playing, the raw
@@ -112,6 +154,13 @@ distribution. `src/ma3.lua` is the only file that touches the grandMA3 API.
 
 ```bash
 ./run-fake-console.sh    # then open http://127.0.0.1:8090/
+```
+
+For the grid view, run the grid scenario and open `http://127.0.0.1:8090/grid`. It adds numbered
+sequences that start, stop and change cue, cues with fades, and two timecode slots:
+
+```bash
+./run-fake-console.sh 120 grid
 ```
 
 This runs the **built artifact** against a stubbed object model whose cue stacks

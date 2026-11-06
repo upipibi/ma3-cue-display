@@ -95,6 +95,12 @@ t.describe("http.route", function()
     t.assert_equal(overlay, plain)
   end)
 
+  t.it("serves the same page at /grid, with or without the overlay style", function()
+    local plain = http.route({ method = "GET", path = "/", query = "" }, CTX)
+    t.assert_equal(http.route({ method = "GET", path = "/grid", query = "" }, CTX), plain)
+    t.assert_equal(http.route({ method = "GET", path = "/grid", query = "style=overlay" }, CTX), plain)
+  end)
+
   t.it("serves cached JSON at /api/state", function()
     local r = http.route({ method = "GET", path = "/api/state", query = "" }, CTX)
     t.assert_match(r, "application/json")

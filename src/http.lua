@@ -45,14 +45,14 @@ function M.response(status, content_type, body)
 end
 
 -- The page picks its own mode from location.pathname and location.search, so
--- "/" and "/debug" serve one identical document and there is no server-side
+-- "/", "/debug" and "/grid" serve one identical document and there is no server-side
 -- styling logic to keep in sync.
 function M.route(req, ctx)
   if req.method ~= "GET" then
     return M.response(405, "text/plain; charset=utf-8", "method not allowed")
   end
   local p = req.path
-  if p == "/" or p == "/debug" then
+  if p == "/" or p == "/debug" or p == "/grid" then
     return M.response(200, "text/html; charset=utf-8", ctx.html)
   elseif p == "/api/state" then
     return M.response(200, "application/json; charset=utf-8", ctx.state_json)

@@ -23,6 +23,13 @@ local CONFIG = {
   tick_seconds = 0.05,     -- 20 Hz socket service
   cue_scan_every = 4,      -- every 4th tick => ~5 Hz cue polling
   max_consecutive_errors = 10,
+  -- The grid view (/grid) shows running sequences numbered grid_from..grid_to:
+  -- songs, their (key) twins and the song effect sequences. House looks,
+  -- Resolume control and helpers live above that range.
+  grid_from = 1,
+  grid_to = 89,
+  timecode_slots = { 1, 2 },   -- the two clocks on the grid view
+  timecode_fps = 30,           -- frames per second of the timecode readout
 }
 
 -- Start and stop run as separate coroutines with no shared upvalues, so the
@@ -58,6 +65,7 @@ local function report_urls()
   log("serving on port %d -- replace <console-ip> with this station's address", CONFIG.port)
   log("  full screen : http://<console-ip>:%d/", CONFIG.port)
   log("  OBS overlay : http://<console-ip>:%d/?style=overlay", CONFIG.port)
+  log("  grid        : http://<console-ip>:%d/grid", CONFIG.port)
   log("  debug       : http://<console-ip>:%d/debug", CONFIG.port)
 end
 
@@ -78,11 +86,18 @@ local function run_server()
 
   local clock = wall_clock(socket)
   local sv = server.new(listener, {})
-  local st = state.new()
+  local st = state.new({ grid_from = CONFIG.grid_from, grid_to = CONFIG.grid_to })
   local adapter = ma3.new()
+
+  local function encode_state()
+    local payload = state.payload(st, VERSION, clock())
+    payload.timecodeFps = CONFIG.timecode_fps
+    return json.encode(payload)
+  end
+
   local ctx = {
     html = display_html,
-    state_json = json.encode(state.payload(st, VERSION, clock())),
+    state_json = encode_state(),
     version = VERSION,
   }
 
@@ -96,13 +111,17 @@ local function run_server()
   while running() do
     local ok_tick, tick_err = pcall(function()
       tick = tick + 1
+      -- Timecode is sampled on every tick: it is two property reads, and the
+      -- clocks on the grid view are only as close to the console as this is.
+      state.update_timecode(st, ma3.timecode(adapter, CONFIG.timecode_slots), clock())
+      -- The sequence pool sweep is the expensive read, so it stays at ~5 Hz.
       if tick % CONFIG.cue_scan_every == 0 then
-        state.update(st, ma3.snapshot(adapter))
-        -- Regenerated unconditionally, not only when the cue changes: a moving
-        -- updatedAt is the heartbeat every viewer uses to tell a live console
-        -- from a wedged one.
-        ctx.state_json = json.encode(state.payload(st, VERSION, clock()))
+        state.update(st, ma3.snapshot(adapter), clock())
       end
+      -- Regenerated unconditionally, not only when something changes: a moving
+      -- updatedAt is the heartbeat every viewer uses to tell a live console
+      -- from a wedged one.
+      ctx.state_json = encode_state()
       server.tick(sv, ctx, clock())
     end)
 

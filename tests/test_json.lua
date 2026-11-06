@@ -75,4 +75,17 @@ t.describe("json.encode", function()
         .. '"cueNumber":"12.5","sequence":"Main","updatedAt":5,"version":"2.0.0"}'
     )
   end)
+
+  t.it("writes json.null as null inside arrays and objects", function()
+    t.assert_equal(json.encode({ 1, json.null, 3 }), "[1,null,3]")
+    t.assert_equal(json.encode({ a = json.null }), '{"a":null}')
+    t.assert_equal(json.encode(json.null), "null")
+  end)
+
+  t.it("encodes an array of eight nulls, and nulls in any position", function()
+    local n = json.null
+    t.assert_equal(json.encode({ n, n, n, n, n, n, n, n }),
+      "[null,null,null,null,null,null,null,null]")
+    t.assert_equal(json.encode({ n, { number = 55 }, n }), '[null,{"number":55},null]')
+  end)
 end)

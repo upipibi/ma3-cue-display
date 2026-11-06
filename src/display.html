@@ -103,6 +103,59 @@
   .debugpanel pre { white-space: pre-wrap; word-break: break-all;
                     background: #14171c; padding: 0.8rem; border-radius: 4px; }
   .debugpanel li { list-style: none; padding: 0.15rem 0; }
+  /* Grid: /grid. One frame of exactly 1280 x 800, pinned to the page's top-left
+     corner so an OBS crop (or a 1280 x 800 Browser source) always fits. Nothing
+     in it moves: the clocks sit at the top and all eight slots are always
+     drawn, empty or not. The console decides which sequence is in which slot. */
+  #grid { display: none; }
+  body.grid { display: block; padding: 0; overflow: auto; }
+  body.grid .stack { display: none; }
+  body.grid #grid {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    position: absolute; left: 0; top: 0; width: 1280px; height: 800px;
+    padding: 20px; overflow: hidden; background: #0b0d10;
+  }
+  .g-clocks { display: flex; gap: 14px; flex: none; }
+  .g-tc { width: 390px; height: 100px; flex: none; background: #14181d;
+          border: 1px solid #2a3038; border-radius: 8px; padding: 10px 18px 0; }
+  .g-lab { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+           color: var(--muted); white-space: nowrap; }
+  .g-lab span { color: #4a5059; }
+  .g-dig { font-size: 58px; font-weight: 700; line-height: 1.05; white-space: nowrap;
+           font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+  .g-tc.idle .g-dig { color: #4a5059; }
+  .g-slots { display: grid; grid-template-columns: 612px 612px; grid-auto-rows: 150px;
+             gap: 14px; flex: none; }
+  .g-slot { background: #14181d; border: 1px solid #2a3038; border-radius: 8px;
+            padding: 12px 18px 14px; min-width: 0; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: center; }
+  .g-slot.empty { background: transparent; border-color: #1b1f25; }
+  .g-slot.empty > * { visibility: hidden; }
+  .g-seq { font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .g-cue { display: flex; align-items: baseline; gap: 0.35em; min-width: 0; margin: 2px 0 10px; }
+  .g-num { font-size: 52px; font-weight: 700; line-height: 1.05; color: var(--accent);
+           font-variant-numeric: tabular-nums; flex: none; }
+  .g-name { font-size: 38px; font-weight: 600; line-height: 1.15; min-width: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .g-fade { display: flex; align-items: center; gap: 12px; height: 22px; }
+  .g-bar { flex: 1; height: 8px; border-radius: 4px; background: #262c34; overflow: hidden; }
+  .g-bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 4px; }
+  .g-slot.done .g-bar i { background: #3b4450; }
+  .g-ftxt { font-size: 17px; color: var(--muted); min-width: 5.2em; text-align: right;
+            white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .g-slot.fading .g-ftxt { color: var(--fg); font-weight: 600; }
+  /* A cue with no readable fade shows no bar at all, rather than a made-up one. */
+  .g-slot.nofade .g-fade { visibility: hidden; }
+
+  /* /grid?style=overlay: transparent behind the boxes, and empty slots draw
+     nothing, so the frame can sit over video. Positions are identical. */
+  body.gridclear, body.gridclear #grid { background: transparent; }
+  body.gridclear .g-slot.empty { border-color: transparent; }
+
+  body.grid.stale .g-clocks, body.grid.stale .g-slots { opacity: 0.25; }
+  body.grid .offline { position: absolute; left: 0; right: auto; bottom: auto; top: 384px;
+                       width: 1280px; font-size: 22px; z-index: 2; }
 </style>
 </head>
 <body>
@@ -113,6 +166,8 @@
       <span class="name waiting" id="name">Waiting for first cue</span>
     </div>
   </div>
+
+  <div id="grid"></div>
 
   <div class="offline" id="offline">No data from console</div>
 
@@ -134,8 +189,12 @@
 
   var params = new URLSearchParams(location.search);
   var mode = location.pathname === "/debug" ? "debug"
+           : location.pathname === "/grid" ? "grid"
            : (params.get("style") === "overlay" ? "overlay" : "full");
   document.body.classList.add(mode);
+  if (mode === "grid" && params.get("style") === "overlay") {
+    document.body.classList.add("gridclear");
+  }
 
   var el = {
     sequence: document.getElementById("sequence"),
@@ -242,6 +301,7 @@
         }
 
         render(s);
+        if (mode === "grid") gridIngest(s, Date.now());
         refreshStale();
         renderDebug(s, raw);
       })
@@ -250,6 +310,184 @@
         refreshStale();
         renderDebug(null, null);
       });
+  }
+
+  // ------------------------------------------------------------------ grid view
+  // The console says what is in each of the eight slots and when each cue fired.
+  // The page draws that, and between polls runs its own clock so the timecode
+  // and the fade bars move smoothly instead of in 250 ms steps.
+  var GRID_SLOTS = 8;
+  var CLOCK_SAMPLES = 8;       // polls kept for locking a clock to the console
+  var CLOCK_JUMP_S = 0.5;      // a sample this far off the running clock is a locate
+  var REFIRE_MS = 500;         // a start estimate this much later is a new fire
+  var gridFps = 30;
+  var gridClocks = [];         // { el, lab, dig, note, slot, seconds, running, offsets, offset, shown }
+  var gridSlots = [];          // { el, seq, num, name, fill, ftxt, entry, key, start }
+
+  function mk(tag, cls, parent) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function setText(node, text) {
+    if (node.textContent !== text) node.textContent = text;
+  }
+
+  function buildGrid() {
+    var frame = document.getElementById("grid");
+    var clocks = mk("div", "g-clocks", frame);
+    var i;
+    for (i = 0; i < 2; i++) {
+      var tc = mk("div", "g-tc idle", clocks);
+      var lab = mk("div", "g-lab", tc);
+      var c = { el: tc, lab: lab, name: document.createTextNode("TC " + (i + 1)),
+                note: mk("span", "", null), dig: mk("div", "g-dig", tc),
+                slot: i + 1, seconds: null, running: false, offsets: [], offset: null, shown: null };
+      lab.appendChild(c.name);
+      lab.appendChild(c.note);
+      c.dig.textContent = "--:--:--:--";
+      gridClocks.push(c);
+    }
+    var slots = mk("div", "g-slots", frame);
+    for (i = 0; i < GRID_SLOTS; i++) {
+      var box = mk("div", "g-slot empty", slots);
+      var seq = mk("div", "g-seq", box);
+      var cue = mk("div", "g-cue", box);
+      var num = mk("span", "g-num", cue);
+      var name = mk("span", "g-name", cue);
+      var fade = mk("div", "g-fade", box);
+      var bar = mk("div", "g-bar", fade);
+      var fill = mk("i", "", bar);
+      var ftxt = mk("span", "g-ftxt", fade);
+      // Placeholder text keeps an empty slot the same height as a full one.
+      seq.textContent = "\u00a0"; num.textContent = "0"; name.textContent = "\u00a0";
+      ftxt.textContent = "\u00a0";
+      gridSlots.push({ el: box, seq: seq, num: num, name: name, fill: fill, ftxt: ftxt,
+                       entry: null, key: null, start: null });
+    }
+  }
+
+  function two(n) { return (n < 10 ? "0" : "") + n; }
+
+  function formatTimecode(seconds, fps) {
+    if (typeof seconds !== "number" || !isFinite(seconds)) return "--:--:--:--";
+    var frames = Math.floor(Math.max(0, seconds) * fps + 1e-6);
+    var whole = Math.floor(frames / fps);
+    return two(Math.floor(whole / 3600)) + ":" + two(Math.floor(whole / 60) % 60) + ":" +
+           two(whole % 60) + ":" + two(frames % fps);
+  }
+
+  function formatFade(seconds) {
+    return String(Math.round(seconds * 100) / 100);
+  }
+
+  // rx is when the poll's answer arrived, in the page's own milliseconds.
+  function gridIngest(s, rx) {
+    var fps = Number(s.timecodeFps);
+    gridFps = fps >= 1 ? Math.round(fps) : 30;
+
+    var samples = s.timecode || [];
+    gridClocks.forEach(function (c, i) {
+      var t = samples[i];
+      if (t && typeof t.slot === "number") {
+        c.slot = t.slot;
+        setText(c.name, "TC " + t.slot);
+      }
+      var seconds = t && typeof t.seconds === "number" ? t.seconds : null;
+      var running = !!(t && t.running) && seconds !== null;
+      if (running) {
+        // Every answer is a little old by the time it arrives. The least delayed
+        // one of the last few has the largest (console - local) offset; lock to it.
+        var offset = seconds - rx / 1000;
+        if (c.offset !== null && Math.abs(offset - c.offset) > CLOCK_JUMP_S) c.offsets = [];
+        c.offsets.push(offset);
+        if (c.offsets.length > CLOCK_SAMPLES) c.offsets.shift();
+        c.offset = Math.max.apply(null, c.offsets);
+      } else {
+        c.offsets = [];
+        c.offset = null;
+      }
+      c.seconds = seconds;
+      c.running = running;
+    });
+
+    var grid = s.grid || [];
+    gridSlots.forEach(function (g, i) {
+      var e = grid[i] || null;
+      if (!e) { g.entry = null; g.key = null; g.start = null; return; }
+      var key = e.number + "|" + e.cueNumber;
+      var estimate = typeof e.firedAgo === "number" ? rx - e.firedAgo * 1000 : null;
+      if (key === g.key && g.start !== null && estimate !== null) {
+        // Same cue: keep the earliest start seen (the least delayed answer),
+        // unless the estimate moved clearly later, which is the cue firing again.
+        g.start = estimate > g.start + REFIRE_MS ? estimate : Math.min(g.start, estimate);
+      } else {
+        g.start = estimate;
+      }
+      g.key = key;
+      g.entry = e;
+    });
+  }
+
+  function drawGrid() {
+    var now = Date.now();
+    var stale = document.body.classList.contains("stale");
+
+    gridClocks.forEach(function (c) {
+      var seconds = c.seconds;
+      if (c.running && c.offset !== null) {
+        // A stale page stops running the clock: it no longer knows the time.
+        seconds = stale && c.shown !== null ? c.shown : now / 1000 + c.offset;
+      }
+      c.shown = seconds;
+      setText(c.dig, formatTimecode(seconds, gridFps));
+      setText(c.note, c.running ? "" : "  stopped");
+      c.el.classList.toggle("idle", !c.running);
+    });
+
+    gridSlots.forEach(function (g) {
+      var e = g.entry;
+      g.el.classList.toggle("empty", !e);
+      if (!e) {
+        g.el.classList.remove("fading", "done", "nofade");
+        return;
+      }
+      // Show-file text: textContent only.
+      setText(g.seq, String(e.name == null ? "" : e.name));
+      setText(g.num, String(e.cueNumber == null ? "" : e.cueNumber));
+      setText(g.name, String(e.cueName == null ? "" : e.cueName));
+
+      var fade = typeof e.fade === "number" && e.fade >= 0 ? e.fade : null;
+      var fading = false, width = "100%", text = "";
+      if (fade === null) {
+        text = "\u00a0";
+      } else if (fade === 0) {
+        text = "snap";
+      } else {
+        var elapsed = g.start === null ? fade : (now - g.start) / 1000;
+        if (elapsed < fade) {
+          fading = true;
+          width = (Math.max(0, elapsed) / fade * 100).toFixed(1) + "%";
+          text = (fade - Math.max(0, elapsed)).toFixed(1) + " s";
+        } else {
+          text = "fade " + formatFade(fade) + " s";
+        }
+      }
+      g.el.classList.toggle("nofade", fade === null);
+      g.el.classList.toggle("fading", fading);
+      g.el.classList.toggle("done", fade !== null && !fading);
+      if (g.fill.style.width !== width) g.fill.style.width = width;
+      setText(g.ftxt, text);
+    });
+
+    requestAnimationFrame(drawGrid);
+  }
+
+  if (mode === "grid") {
+    buildGrid();
+    requestAnimationFrame(drawGrid);
   }
 
   poll();

@@ -56,3 +56,6 @@ build/
 
 # Retired Tauri app: source removed in 2.0.0, build output left on disk locally
 gma3-cue-display-tauri/
+
+# Brainstorm mockups (visual companion), local only
+.superpowers/
