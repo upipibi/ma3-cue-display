@@ -43,20 +43,23 @@ over HTTP to browsers and OBS. No companion app, no OSC. Personal project under
   console's shared `package.loaded` served it 2.0's modules. `build.sh` now gives the bundle a private
   module table; its verify step and `tools/fake-console.lua` plant stale modules so this fails on the Mac.
 - The rebuilt 2.1.0 was imported by Aaron and runs on the console (`/health` = `ok 2.1.0`, `/grid` serves),
-  stored in the show file, show saved. Committed and pushed from that session; no GitHub release yet.
+  stored in the show file, show saved. Committed, pushed and released from that session as `v2.1.0`
+  (pre-release); the repo was made public the same day.
 - Not yet seen on the console: timecode rolling and a song running in the grid. Aaron plans that for
   Sunday 2026-11-08.
 - **Verify:** `./run-tests.sh` (111 passed on both Lua versions), `./build.sh` ("own modules resolved in a
   dirty Lua state"), `./run-fake-console.sh 60 grid` then open `http://127.0.0.1:8090/grid`.
 
 ## Status — 2026-11-06
-- **Stage:** 2.0.1 is the last GitHub release; 2.1.0 runs on a grandMA3 light (2.5.1.1), stored in the show file.
-- **2.1.0 runs on the console (imported 2026-11-06), no GitHub release yet: the grid view**
+- **Stage:** 2.1.0 runs on a grandMA3 light (2.5.1.1), stored in the show file, and is on GitHub as
+  `v2.1.0`, a pre-release until timecode and a running song have been seen in the grid on the desk
+  (planned Sunday 2026-11-08). Then: `gh release edit v2.1.0 --prerelease=false --latest`.
+- **2.1.0 runs on the console (imported 2026-11-06): the grid view**
   (`/grid`): a fixed
   1280 x 800 frame with timecode slots 1 and 2 and eight fixed sequence slots, each with its cue
   and the cue's fade. Design: `docs/superpowers/specs/2026-11-05-grid-timecode-fades-design.md`;
   plan: `docs/superpowers/plans/2026-11-05-grid-timecode-fades.md`. Aaron chose the version
-  ("Sure! 2.1.0"); `build.sh` says 2.1.0. No GitHub release yet. Verified locally: 111 unit tests on Lua 5.5 and 5.4,
+  ("Sure! 2.1.0"); `build.sh` says 2.1.0. Verified locally: 111 unit tests on Lua 5.5 and 5.4,
   and a headless-browser run against `./run-fake-console.sh 75 grid` (frame rectangle, no slot
   ever moves, clocks, fades, overlay, stale, old views unchanged). **Not yet verified on the
   console:** that a `TimecodeSlot`'s `TIME` advances for a plugin while timecode rolls (needs
@@ -140,8 +143,8 @@ probe/                    throwaway feasibility plugin, not shipped
 | Thing | Value |
 |---|---|
 | Type / stack | grandMA3 Lua plugin — Lua 5.5 on the console (5.4 kept as a check) + LuaSocket, vanilla frontend |
-| GitHub repo | `upipibi/ma3-cue-display` (public) |
-| Current version | 2.1.0 in `build.sh` (last GitHub release: 2.0.1) |
+| GitHub repo | `upipibi/ma3-cue-display` (public; it was private until 2026-11-06, made public on Aaron's word after a history scan) |
+| Current version | 2.1.0 (defined once, in `build.sh`; GitHub pre-release `v2.1.0`) |
 | Ports | 8090 HTTP (configurable in `src/main.lua`) |
 | Host | grandMA3 console |
 | Secrets | none |
@@ -156,7 +159,7 @@ brew install lua@5.5 lua@5.4
 ```
 
 A release is two generated text files, zipped as `MA3CueDisplay-<version>.zip` on a GitHub release
-tagged `v<version>` (first one: `v2.0.1`). No signing, no notarization, no Sparkle,
+tagged `v<version>` (`v2.0.1`, `v2.1.0`). No signing, no notarization, no Sparkle,
 no `xattr -cr`, no Gatekeeper. That whole class of problem left with the Mac app.
 
 `dist/` is fully gitignored — both artifacts are generated, and the XML comes
